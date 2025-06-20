@@ -1,47 +1,112 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
+import { ethers } from 'ethers';
+import { abi, contractAddress } from '../lib/insuranceContract';
 
 interface Policy {
-  id: string;
+  farmer: string;
   farmName: string;
-  cropType: string;
-  acreage: number;
+  lat: bigint;
+  lng: bigint;
+  acreage: bigint;
   riskType: string;
-  premium: number;
-  status: 'active' | 'expired' | 'claimed';
-  startDate: string;
-  endDate: string;
+  rainfallThreshold: bigint;
+  startDate: bigint;
+  endDate: bigint;
+  premiumPaid: bigint;
+  claimed: boolean;
+  active: boolean;
+}
+
+interface PolicyWithId extends Policy {
+  id: number;
 }
 
 export default function DashboardPage() {
-  const [policies] = useState<Policy[]>([
-    {
-      id: '1',
-      farmName: 'Green Valley Farm',
-      cropType: 'Corn',
-      acreage: 150,
-      riskType: 'Drought',
-      premium: 1875,
-      status: 'active',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31'
-    },
-    {
-      id: '2',
-      farmName: 'Sunset Fields',
-      cropType: 'Wheat',
-      acreage: 80,
-      riskType: 'Rainfall',
-      premium: 1200,
-      status: 'active',
-      startDate: '2024-03-01',
-      endDate: '2025-02-28'
-    }
-  ]);
+  const { address } = useAccount();
+  const [policies, setPolicies] = useState<PolicyWithId[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Use ethers.js directly to fetch all policies for the user
+  useEffect(() => {
+    const fetchPolicies = async () => {
+      console.log('Testing contract access with ethers.js...');
+      console.log('Address:', address);
+
+      if (!address) {
+        console.log('Missing address');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Create ethers provider and contract instance
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        
+        // First, get all policy IDs for this farmer
+        console.log('Fetching farmer policies...');
+        const farmerPolicyIds = await contract.getFarmerPolicies(address);
+        console.log('Farmer policy IDs:', farmerPolicyIds);
+
+        if (!farmerPolicyIds || farmerPolicyIds.length === 0) {
+          console.log('No policies found for this address');
+          setPolicies([]);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch each policy
+        const fetchedPolicies: PolicyWithId[] = [];
+        
+        for (let i = 0; i < farmerPolicyIds.length; i++) {
+          const policyId = Number(farmerPolicyIds[i]);
+          console.log(`Fetching policy ${policyId}...`);
+          
+          const policyData = await contract.getPolicy(policyId);
+          console.log(`Policy ${policyId} data:`, policyData);
+          
+          if (policyData && policyData[0]) {
+            // Map the array values to the Policy interface
+            const mappedPolicy: Policy = {
+              farmer: policyData[0], // address
+              farmName: policyData[1], // string
+              lat: policyData[2], // bigint
+              lng: policyData[3], // bigint
+              acreage: policyData[4], // bigint
+              riskType: policyData[5], // string
+              rainfallThreshold: policyData[6], // bigint
+              startDate: policyData[7], // bigint
+              endDate: policyData[8], // bigint
+              premiumPaid: policyData[9], // bigint
+              claimed: policyData[10], // boolean
+              active: policyData[11], // boolean
+            };
+            
+            fetchedPolicies.push({
+              ...mappedPolicy,
+              id: policyId,
+            });
+          }
+        }
+
+        console.log('Final fetched policies:', fetchedPolicies);
+        setPolicies(fetchedPolicies);
+      } catch (error) {
+        console.error('Error fetching policies with ethers.js:', error);
+        setPolicies([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPolicies();
+  }, [address]);
 
   const [showClaimForm, setShowClaimForm] = useState(false);
-  const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<PolicyWithId | null>(null);
   const [claimData, setClaimData] = useState({
     reason: '',
     description: '',
@@ -57,14 +122,58 @@ export default function DashboardPage() {
     setClaimData({ reason: '', description: '', damageAmount: '' });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
-      case 'expired': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
-      case 'claimed': return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
-      default: return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white';
-    }
+  const getStatusColor = (policy: PolicyWithId) => {
+    if (policy.claimed) return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
+    if (!policy.active) return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
+    
+    const now = Math.floor(Date.now() / 1000);
+    const endDate = Number(policy.endDate);
+    
+    if (now > endDate) return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
+    return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
   };
+
+  const getStatusText = (policy: PolicyWithId) => {
+    if (policy.claimed) return 'Claimed';
+    if (!policy.active) return 'Inactive';
+    
+    const now = Math.floor(Date.now() / 1000);
+    const endDate = Number(policy.endDate);
+    
+    if (now > endDate) return 'Expired';
+    return 'Active';
+  };
+
+  const formatDate = (timestamp: bigint) => {
+    return new Date(Number(timestamp) * 1000).toLocaleDateString();
+  };
+
+  const formatCoordinates = (lat: bigint, lng: bigint) => {
+    const latitude = Number(lat) / 1000000;
+    const longitude = Number(lng) / 1000000;
+    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+  };
+
+  const formatPremium = (premium: bigint) => {
+    const premiumInRupees = Number(premium) * 30; // Convert from Flow to INR
+    return `₹${premiumInRupees.toLocaleString()}`;
+  };
+
+  if (!address) {
+    return (
+      <div className="min-h-screen py-8 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="glass-card p-12 rounded-2xl text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-gray-400 to-gray-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-2xl">🔗</span>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-4">Connect Your Wallet</h3>
+            <p className="text-gray-600 mb-8 text-lg">Please connect your wallet to view your insurance policies.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -82,7 +191,20 @@ export default function DashboardPage() {
         
         {!showClaimForm ? (
           <div className="space-y-8">
-            {policies.length === 0 ? (
+            {loading ? (
+              <div className="glass-card p-12 rounded-2xl text-center">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-spin">
+                  <span className="text-2xl">⏳</span>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">Loading Policies...</h3>
+                <p className="text-gray-600">Fetching your insurance policies from the blockchain.</p>
+                {policies.length > 0 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Found {policies.length} policies
+                  </p>
+                )}
+              </div>
+            ) : policies.length === 0 ? (
               <div className="glass-card p-12 rounded-2xl text-center">
                 <div className="w-16 h-16 bg-gradient-to-r from-gray-400 to-gray-500 rounded-full flex items-center justify-center mx-auto mb-6">
                   <span className="text-2xl">📄</span>
@@ -102,20 +224,22 @@ export default function DashboardPage() {
                         <h3 className="text-2xl font-bold text-gray-800 mb-2">{policy.farmName}</h3>
                         <p className="text-gray-600">Policy ID: #{policy.id}</p>
                       </div>
-                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(policy.status)}`}>
-                        {policy.status.charAt(0).toUpperCase() + policy.status.slice(1)}
+                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(policy)}`}>
+                        {getStatusText(policy)}
                       </span>
                     </div>
                     
                     <div className="space-y-4 mb-6">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-xl">
-                          <div className="text-sm text-gray-600 mb-1">🌱 Crop Type</div>
-                          <div className="font-semibold text-gray-800">{policy.cropType}</div>
+                          <div className="text-sm text-gray-600 mb-1">📍 Location</div>
+                          <div className="font-semibold text-gray-800 text-xs">
+                            {(Number(policy.lat) / 1000000).toFixed(6)}, {(Number(policy.lng) / 1000000).toFixed(6)}
+                          </div>
                         </div>
                         <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl">
                           <div className="text-sm text-gray-600 mb-1">📏 Acreage</div>
-                          <div className="font-semibold text-gray-800">{policy.acreage} acres</div>
+                          <div className="font-semibold text-gray-800">{Number(policy.acreage)} acres</div>
                         </div>
                         <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-xl">
                           <div className="text-sm text-gray-600 mb-1">⚠️ Risk Type</div>
@@ -123,19 +247,26 @@ export default function DashboardPage() {
                         </div>
                         <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-xl">
                           <div className="text-sm text-gray-600 mb-1">💰 Premium</div>
-                          <div className="font-semibold text-gray-800">${policy.premium}</div>
+                          <div className="font-semibold text-gray-800">{formatPremium(policy.premiumPaid)}</div>
                         </div>
                       </div>
                       
                       <div className="bg-gray-50 p-4 rounded-xl">
                         <div className="text-sm text-gray-600 mb-2">📅 Coverage Period</div>
                         <div className="font-semibold text-gray-800">
-                          {new Date(policy.startDate).toLocaleDateString()} - {new Date(policy.endDate).toLocaleDateString()}
+                          {formatDate(policy.startDate)} - {formatDate(policy.endDate)}
                         </div>
                       </div>
+
+                      {Number(policy.rainfallThreshold) > 0 && (
+                        <div className="bg-gradient-to-r from-cyan-50 to-cyan-100 p-4 rounded-xl">
+                          <div className="text-sm text-gray-600 mb-1">🌧️ Rainfall Threshold</div>
+                          <div className="font-semibold text-gray-800">{Number(policy.rainfallThreshold)} cm</div>
+                        </div>
+                      )}
                     </div>
                     
-                    {policy.status === 'active' && (
+                    {getStatusText(policy) === 'Active' && (
                       <button
                         onClick={() => {
                           setSelectedPolicy(policy);
@@ -171,8 +302,10 @@ export default function DashboardPage() {
                       <div className="font-semibold text-gray-800">{selectedPolicy.farmName}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-600">🌱 Crop</div>
-                      <div className="font-semibold text-gray-800">{selectedPolicy.cropType}</div>
+                      <div className="text-sm text-gray-600">📍 Location</div>
+                      <div className="font-semibold text-gray-800 text-xs">
+                        {(Number(selectedPolicy.lat) / 1000000).toFixed(6)}, {(Number(selectedPolicy.lng) / 1000000).toFixed(6)}
+                      </div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-600">⚠️ Risk Type</div>
@@ -218,7 +351,7 @@ export default function DashboardPage() {
 
                 <div>
                   <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    💰 Estimated Damage Amount ($)
+                    💰 Estimated Damage Amount (₹)
                   </label>
                   <input
                     type="number"

@@ -15,8 +15,8 @@ contract CropInsurance {
         uint256 startDate;
         uint256 endDate;
         uint256 premiumPaid;
-        bool claimed;
-        bool active;
+        uint256 payout;           // Payout amount (multiplied by 30)
+        uint8 status;             // 0: active, 1: claimed, 2: inactive
     }
 
     uint256 public policyCounter;
@@ -61,8 +61,8 @@ contract CropInsurance {
             startDate: startDate,
             endDate: endDate,
             premiumPaid: premiumPaid,
-            claimed: false,
-            active: true
+            payout: 0,
+            status: 0 // 0 = active
         });
 
         farmerPolicies[msg.sender].push(policyCounter); // Store policy ID for the farmer
@@ -72,15 +72,14 @@ contract CropInsurance {
 
     function issuePayout(uint256 policyId, uint256 damagePercent) external onlyOwner {
         Policy storage policy = policies[policyId];
-        require(policy.active, "Policy is not active");
-        require(!policy.claimed, "Already claimed");
+        require(policy.status == 0, "Policy is not active or already claimed");
         require(damagePercent <= 100, "Damage percent must be <= 100");
 
         uint256 insuredAmount = policy.acreage * 5000; // Rs. 5000 per acre
         uint256 payout = (insuredAmount * damagePercent) / 100;
 
-        policy.claimed = true;
-        policy.active = false;
+        policy.status = 1; // 1 = claimed
+        policy.payout = payout * 30;
 
         payable(policy.farmer).transfer(payout);
         emit PayoutIssued(policyId, policy.farmer, payout);
