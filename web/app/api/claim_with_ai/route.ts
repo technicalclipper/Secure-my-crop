@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const address=body.address;
         const policyId=body.policyId;
-        const premium=body.premium;
         const lat=body.lat;
         const lng=body.lng;
 
@@ -24,11 +23,50 @@ export async function POST(req: NextRequest) {
         const damageResponse = await axios.post(`${baseUrl}/api/estimate_damage`, {
             data: weatherData
         });
-        const damage=damageResponse.data;
-
+        const damage = damageResponse.data.res;
         
+        // Parse damage percentage from the AI response
+        const damagePercent = parseInt(damage);
         
-        return NextResponse.json({ success: true, damage: damageResponse.data });
+        // Check if damage is greater than 20%
+        if (damagePercent > 20) {
+            // Setup ethers wallet with private key
+            const privateKey = process.env.AGENT_PRIVATE_KEY;
+            if (!privateKey) {
+                throw new Error("AGENT_PRIVATE_KEY not found in environment variables");
+            }
+            
+            // Create provider and wallet
+            const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+            const wallet = new ethers.Wallet(privateKey, provider);
+            
+            // Create contract instance with wallet
+            const contract = new ethers.Contract(contractAddress, abi, wallet);
+            
+            // Call issuePayout function
+            console.log(`Issuing payout for policy ${policyId} with damage ${damagePercent}%`);
+            const tx = await contract.issuePayout(policyId, damagePercent);
+            
+            // Wait for transaction to be mined
+            const receipt = await tx.wait();
+            
+            return NextResponse.json({ 
+                success: true, 
+                damage: damageResponse.data,
+                payoutIssued: true,
+                transactionHash: receipt.hash,
+                damagePercent: damagePercent
+            });
+        } else {
+            return NextResponse.json({ 
+                success: true, 
+                damage: damageResponse.data,
+                payoutIssued: false,
+                damagePercent: damagePercent,
+                message: "Damage is not sufficient for payout (must be > 20%)"
+            });
+        }
+        
     } catch (error) {
       console.error("Error processing request:", error);
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

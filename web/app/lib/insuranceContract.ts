@@ -1,83 +1,5 @@
-export const contractAddress = "0x1De440d6DcdA19B67BCfA1358e71713df22d5a76";
+export const contractAddress = "0x37138CC978D3984386Cf890a7EAF0f540351125f";
 export const abi=[
-	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "farmName",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "lat",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "lng",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "acreage",
-				"type": "uint256"
-			},
-			{
-				"internalType": "string",
-				"name": "riskType",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "rainfallThreshold",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "startDate",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "endDate",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "premiumPaid",
-				"type": "uint256"
-			}
-		],
-		"name": "createPolicy",
-		"outputs": [],
-		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "deposit",
-		"outputs": [],
-		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "policyId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "damagePercent",
-				"type": "uint256"
-			}
-		],
-		"name": "issuePayout",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
 	{
 		"inputs": [],
 		"stateMutability": "nonpayable",
@@ -153,15 +75,64 @@ export const abi=[
 		"type": "event"
 	},
 	{
-		"inputs": [],
-		"name": "withdraw",
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "farmName",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "lat",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "lng",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "acreage",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "riskType",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "rainfallThreshold",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startDate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "endDate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "premiumPaid",
+				"type": "uint256"
+			}
+		],
+		"name": "createPolicy",
 		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "deposit",
+		"outputs": [],
 		"stateMutability": "payable",
-		"type": "receive"
+		"type": "function"
 	},
 	{
 		"inputs": [
@@ -245,14 +216,14 @@ export const abi=[
 						"type": "uint256"
 					},
 					{
-						"internalType": "bool",
-						"name": "claimed",
-						"type": "bool"
+						"internalType": "uint256",
+						"name": "payout",
+						"type": "uint256"
 					},
 					{
-						"internalType": "bool",
-						"name": "active",
-						"type": "bool"
+						"internalType": "uint8",
+						"name": "status",
+						"type": "uint8"
 					}
 				],
 				"internalType": "struct CropInsurance.Policy",
@@ -261,6 +232,24 @@ export const abi=[
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "policyId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "damagePercent",
+				"type": "uint256"
+			}
+		],
+		"name": "issuePayout",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -337,14 +326,14 @@ export const abi=[
 				"type": "uint256"
 			},
 			{
-				"internalType": "bool",
-				"name": "claimed",
-				"type": "bool"
+				"internalType": "uint256",
+				"name": "payout",
+				"type": "uint256"
 			},
 			{
-				"internalType": "bool",
-				"name": "active",
-				"type": "bool"
+				"internalType": "uint8",
+				"name": "status",
+				"type": "uint8"
 			}
 		],
 		"stateMutability": "view",
@@ -362,5 +351,16 @@ export const abi=[
 		],
 		"stateMutability": "view",
 		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
 	}
 ]

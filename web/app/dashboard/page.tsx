@@ -16,8 +16,8 @@ interface Policy {
   startDate: bigint;
   endDate: bigint;
   premiumPaid: bigint;
-  claimed: boolean;
-  active: boolean;
+  payout: bigint;
+  status: number; // 0: active, 1: claimed, 2: inactive
 }
 
 interface PolicyWithId extends Policy {
@@ -81,8 +81,8 @@ export default function DashboardPage() {
               startDate: policyData[7], // bigint
               endDate: policyData[8], // bigint
               premiumPaid: policyData[9], // bigint
-              claimed: policyData[10], // boolean
-              active: policyData[11], // boolean
+              payout: policyData[10], // bigint
+              status: policyData[11], // number
             };
             
             fetchedPolicies.push({
@@ -112,19 +112,71 @@ export default function DashboardPage() {
     description: '',
     damageAmount: ''
   });
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
-  const handleClaimSubmit = (e: React.FormEvent) => {
+  const handleClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock claim submission
-    alert('Claim submitted successfully! You will be contacted within 48 hours.');
-    setShowClaimForm(false);
-    setSelectedPolicy(null);
-    setClaimData({ reason: '', description: '', damageAmount: '' });
+    
+    if (!selectedPolicy) {
+      alert('No policy selected');
+      return;
+    }
+
+    setIsSubmittingClaim(true);
+
+    try {
+      // Prepare the request data
+      const requestData = {
+        address: address,
+        policyId: selectedPolicy.id,
+        premium: Number(selectedPolicy.premiumPaid),
+        lat: Number(selectedPolicy.lat) / 1000000, // Convert back to decimal
+        lng: Number(selectedPolicy.lng) / 1000000  // Convert back to decimal
+      };
+
+      console.log('Submitting claim with data:', requestData);
+
+      // Make API call to claim_with_ai route
+      const response = await fetch('/api/claim_with_ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const result = await response.json();
+      console.log('Claim API response:', result);
+
+      if (result.success) {
+        if (result.payoutIssued) {
+          alert(`✅ Claim processed successfully!\n\nDamage Assessment: ${result.damagePercent}%\nTransaction Hash: ${result.transactionHash}\n\nPayout has been issued to your wallet.`);
+        } else {
+          alert(`ℹ️ Claim submitted but no payout issued.\n\nDamage Assessment: ${result.damagePercent}%\nReason: ${result.message}`);
+        }
+      } else {
+        alert(`❌ Claim submission failed: ${result.error || 'Unknown error'}`);
+      }
+
+      // Close the form and reset
+      setShowClaimForm(false);
+      setSelectedPolicy(null);
+      setClaimData({ reason: '', description: '', damageAmount: '' });
+      
+      // Refresh the policies to show updated status
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error submitting claim:', error);
+      alert('❌ Failed to submit claim. Please try again.');
+    } finally {
+      setIsSubmittingClaim(false);
+    }
   };
 
   const getStatusColor = (policy: PolicyWithId) => {
-    if (policy.claimed) return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
-    if (!policy.active) return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
+    if (Number(policy.status) === 1) return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white';
+    if (Number(policy.status) === 2) return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
     
     const now = Math.floor(Date.now() / 1000);
     const endDate = Number(policy.endDate);
@@ -134,8 +186,8 @@ export default function DashboardPage() {
   };
 
   const getStatusText = (policy: PolicyWithId) => {
-    if (policy.claimed) return 'Claimed';
-    if (!policy.active) return 'Inactive';
+    if (Number(policy.status) === 1) return 'Claimed';
+    if (Number(policy.status) === 2) return 'Inactive';
     
     const now = Math.floor(Date.now() / 1000);
     const endDate = Number(policy.endDate);
@@ -157,6 +209,11 @@ export default function DashboardPage() {
   const formatPremium = (premium: bigint) => {
     const premiumInRupees = Number(premium) * 30; // Convert from Flow to INR
     return `₹${premiumInRupees.toLocaleString()}`;
+  };
+
+  const formatPayout = (payout: bigint) => {
+    const payoutValue = Number(payout); // Show the raw payout value directly
+    return `₹${payoutValue.toLocaleString()}`;
   };
 
   if (!address) {
@@ -261,12 +318,19 @@ export default function DashboardPage() {
                       {Number(policy.rainfallThreshold) > 0 && (
                         <div className="bg-gradient-to-r from-cyan-50 to-cyan-100 p-4 rounded-xl">
                           <div className="text-sm text-gray-600 mb-1">🌧️ Rainfall Threshold</div>
-                          <div className="font-semibold text-gray-800">{Number(policy.rainfallThreshold)} cm</div>
+                          <div className="font-semibold text-gray-800">{(Number(policy.rainfallThreshold) / 10).toFixed(1)} cm</div>
+                        </div>
+                      )}
+
+                      {Number(policy.status) === 1 && Number(policy.payout) > 0 && (
+                        <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 p-4 rounded-xl border border-emerald-200">
+                          <div className="text-sm text-gray-600 mb-1">💸 Payout Received</div>
+                          <div className="font-semibold text-gray-800 text-lg">{formatPayout(policy.payout)}</div>
                         </div>
                       )}
                     </div>
                     
-                    {getStatusText(policy) === 'Active' && (
+                    {Number(policy.status) === 0 && (
                       <button
                         onClick={() => {
                           setSelectedPolicy(policy);
@@ -367,18 +431,20 @@ export default function DashboardPage() {
                 <div className="flex gap-4 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white py-4 px-8 rounded-xl text-lg font-semibold shadow-2xl hover:shadow-green-500/25 transition-all duration-300 transform hover:scale-105"
+                    disabled={isSubmittingClaim}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white py-4 px-8 rounded-xl text-lg font-semibold shadow-2xl hover:shadow-green-500/25 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    📤 Submit Claim
+                    {isSubmittingClaim ? '🔄 Processing Claim...' : '📤 Submit Claim'}
                   </button>
                   <button
                     type="button"
+                    disabled={isSubmittingClaim}
                     onClick={() => {
                       setShowClaimForm(false);
                       setSelectedPolicy(null);
                       setClaimData({ reason: '', description: '', damageAmount: '' });
                     }}
-                    className="flex-1 glass py-4 px-8 rounded-xl text-lg font-semibold text-white border border-white/20 hover:bg-white/10 transition-all duration-300"
+                    className="flex-1 glass py-4 px-8 rounded-xl text-lg font-semibold text-white border border-white/20 hover:bg-white/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ← Cancel
                   </button>

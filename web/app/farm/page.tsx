@@ -88,8 +88,11 @@ export default function FarmPage() {
       const startDate = Math.floor(new Date(formData.insuranceStartDate).getTime() / 1000);
       const endDate = Math.floor(new Date(formData.insuranceEndDate).getTime() / 1000);
       
-      // Convert rainfall threshold to number
-      const rainfallThreshold = parseFloat(formData.rainfallThreshold) || 0;
+      // Convert rainfall threshold to integer (multiply by 10 to preserve 1 decimal place)
+      const rainfallThreshold = Math.round((parseFloat(formData.rainfallThreshold) || 0) * 10);
+
+      // Ensure premium is an integer for BigInt conversion
+      const premiumInFlowInt = Math.round(premiumInFlow);
 
       writeContract({
         address: contractAddress as `0x${string}`,
@@ -104,7 +107,7 @@ export default function FarmPage() {
           BigInt(rainfallThreshold),
           BigInt(startDate),
           BigInt(endDate),
-          BigInt(Math.round(premiumInFlow))
+          BigInt(premiumInFlowInt)
         ],
         value: parseEther(premiumInFlow.toString())
       });
