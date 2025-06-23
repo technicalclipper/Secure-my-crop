@@ -13,9 +13,52 @@ export async function POST(req: NextRequest) {
         const lat=body.lat;
         const lng=body.lng;
 
+        // WeatherXM API Integration - Fetching real weather data
+        const weatherXMOptions = {
+            method: 'GET',
+            url: 'https://pro.weatherxm.com/api/v1/stations/near',
+            headers: {
+                Accept: 'application/json',
+                'X-API-KEY': process.env.WEATHERXM_API_KEY
+            },
+            params: {
+                lat: lat,
+                lon: lng,
+                radius: 10000 // 10km radius
+            }
+        };
+
+        try {
+            const weatherXMResponse = await axios.request(weatherXMOptions);
+            console.log('WeatherXM Data:', weatherXMResponse.data);
+            
+            // Fetch weather data using station ID from the previous response
+            if (weatherXMResponse.data && weatherXMResponse.data.length > 0) {
+                const stationId = weatherXMResponse.data[0].id; // Get first station ID
+                
+                const weatherDataOptions = {
+                    method: 'GET',
+                    url: `https://pro.weatherxm.com/api/v1/stations/${stationId}/latest`,
+                    headers: {
+                        Accept: 'application/json',
+                        'X-API-KEY': process.env.WEATHERXM_API_KEY
+                    }
+                };
+
+                try {
+                    const weatherDataResponse = await axios.request(weatherDataOptions);
+                    console.log('Weather Data from Station:', weatherDataResponse.data);
+                } catch (weatherDataError) {
+                    console.error('Weather Data API Error:', weatherDataError);
+                }
+            }
+        } catch (weatherError) {
+            console.error('WeatherXM API Error:', weatherError);
+        }
+
         const weatherData="{\n  \"rainfall\": \"80\",\n  \"temperature\": \"45\",\n  \"humidity\": \"100\",\n  \"wind_speed\": \"40\",\n  \"description\": \"Catastrophic rainfall with extreme temperature causing complete crop destruction\"\n}";
         
-        // Get the base URL from the request
+        
         const protocol = req.headers.get('x-forwarded-proto') || 'http';
         const host = req.headers.get('host');
         const baseUrl = `${protocol}://${host}`;
@@ -30,24 +73,24 @@ export async function POST(req: NextRequest) {
         
         // Check if damage is greater than 20%
         if (damagePercent > 20) {
-            // Setup ethers wallet with private key
+            
             const privateKey = process.env.AGENT_PRIVATE_KEY;
             if (!privateKey) {
                 throw new Error("AGENT_PRIVATE_KEY not found in environment variables");
             }
             
-            // Create provider and wallet
+           
             const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
             const wallet = new ethers.Wallet(privateKey, provider);
             
-            // Create contract instance with wallet
+         
             const contract = new ethers.Contract(contractAddress, abi, wallet);
             
             // Call issuePayout function
             console.log(`Issuing payout for policy ${policyId} with damage ${damagePercent}%`);
             const tx = await contract.issuePayout(policyId, damagePercent);
             
-            // Wait for transaction to be mined
+          
             const receipt = await tx.wait();
             
             return NextResponse.json({ 

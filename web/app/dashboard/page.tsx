@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { abi, contractAddress } from '../lib/insuranceContract';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface Policy {
   farmer: string;
@@ -118,7 +119,7 @@ export default function DashboardPage() {
     e.preventDefault();
     
     if (!selectedPolicy) {
-      alert('No policy selected');
+      toast.error('No policy selected');
       return;
     }
 
@@ -150,12 +151,44 @@ export default function DashboardPage() {
 
       if (result.success) {
         if (result.payoutIssued) {
-          alert(`✅ Claim processed successfully!\n\nDamage Assessment: ${result.damagePercent}%\nTransaction Hash: ${result.transactionHash}\n\nPayout has been issued to your wallet.`);
+          toast.success(
+            `✅ Claim processed successfully!\n\nDamage Assessment: ${result.damagePercent}%\nTransaction Hash: ${result.transactionHash}\n\nPayout has been issued to your wallet.`,
+            {
+              duration: 8000,
+              style: {
+                background: '#10B981',
+                color: '#fff',
+                fontSize: '14px',
+                whiteSpace: 'pre-line'
+              }
+            }
+          );
         } else {
-          alert(`ℹ️ Claim submitted but no payout issued.\n\nDamage Assessment: ${result.damagePercent}%\nReason: ${result.message}`);
+          toast(
+            `ℹ️ Claim submitted but no payout issued.\n\nDamage Assessment: ${result.damagePercent}%\nReason: ${result.message}`,
+            {
+              duration: 6000,
+              style: {
+                background: '#3B82F6',
+                color: '#fff',
+                fontSize: '14px',
+                whiteSpace: 'pre-line'
+              }
+            }
+          );
         }
       } else {
-        alert(`❌ Claim submission failed: ${result.error || 'Unknown error'}`);
+        toast.error(
+          `❌ Claim submission failed: ${result.error || 'Unknown error'}`,
+          {
+            duration: 5000,
+            style: {
+              background: '#EF4444',
+              color: '#fff',
+              fontSize: '14px'
+            }
+          }
+        );
       }
 
       // Close the form and reset
@@ -168,7 +201,17 @@ export default function DashboardPage() {
       
     } catch (error) {
       console.error('Error submitting claim:', error);
-      alert('❌ Failed to submit claim. Please try again.');
+      toast.error(
+        '❌ Failed to submit claim. Please try again.',
+        {
+          duration: 5000,
+          style: {
+            background: '#EF4444',
+            color: '#fff',
+            fontSize: '14px'
+          }
+        }
+      );
     } finally {
       setIsSubmittingClaim(false);
     }
@@ -234,6 +277,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen py-8 px-4">
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 5000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+            fontSize: '14px',
+            borderRadius: '12px',
+            padding: '16px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+          },
+        }}
+      />
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
