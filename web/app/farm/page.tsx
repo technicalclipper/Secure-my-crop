@@ -3,8 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
-import MapComponent from '../../components/MapComponent';
+import dynamic from 'next/dynamic';
 import { abi, contractAddress } from '../lib/insuranceContract';
+
+// Dynamically import MapComponent to avoid SSR issues
+const MapComponent = dynamic(() => import('../../components/MapComponent'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-64 border border-gray-300 rounded-md bg-gray-100 flex items-center justify-center">
+      <div className="text-gray-500">Loading map...</div>
+    </div>
+  )
+});
 
 interface LocationCoords {
   lat: number | null;
